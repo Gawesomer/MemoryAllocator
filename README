@@ -1,0 +1,16 @@
+Implementation of a memory allocator.
+
+Characteristics:
+    A doubly-linked list is used to keep track of free chuncks.
+    Each chunck has both a header and a footer.
+    The actual size of the allocated chuncks is rounded up to the nearest
+    multiple of 16 bytes.
+    Chuncks are always aligned on a 16 byte boundary.
+    Allocation uses the next-fit policy.
+
+Note to students:
+    This work was completed in the context of a university course. Implementing
+    a memory allocator is a common assignment task for introductory operating
+    systems courses.
+    If you are a student please DO NOT COPY from this resource.
+    Professors are just as aware of the existence of GitHub as you are.
