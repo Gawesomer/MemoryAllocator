@@ -6,9 +6,11 @@ ARFLAGS  = rvU
 
 .PHONEY: all clean
 
-all: main
+all: alloc.a main
 
-main: main.o alloc.o
+alloc.a: alloc.a(alloc.o)
+
+main: main.o alloc.a
 
 clean: 
 	rm -f *.o *.a main
