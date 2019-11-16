@@ -3,12 +3,23 @@
 #include <stdint.h>
 #include "alloc.h"
 
+// Uncomment the macro below if you want to have verbose display.
+//#define DEBUG
+
+#ifdef DEBUG
+# define DEBUG_PRINT(x) printf x
+# define DISPLAY_ALL(...) (M_DisplayAll)(__VA_ARGS__)
+#else
+# define DEBUG_PRINT(x)
+# define DISPLAY_ALL()
+#endif
+
 /*
- * Available chunck:
+ * Available chunck layout:
  *      Header
  *      Node
  *      Footer
- * Used Chunck:
+ * Used chunck layout:
  *      Header
  *      Data
  *      Footer
@@ -19,9 +30,10 @@
  */
 
 // Block header
+// Used for both headers and footers.
 typedef struct header_t {
     int size;                   // Size available in given chunck. Does not count header and footer.
-    int free;
+    int free;                   // 1 - True; 0 - False
     struct header_t *pair;      // If footer points to associated header and vice versa
 } header_t;
 
@@ -36,6 +48,7 @@ node_t *head;           // Head of the free list
 node_t *current;        // Current node for next fit
 int init = 0;           // Has M_Init been successfully called
 
+// Get Header of the chunck of memory associated with given node.
 header_t *getHeader(void *node) {
     header_t *result = (header_t*)node;
     result--;
@@ -73,6 +86,7 @@ int bigEnough(node_t *ptr, int size) {
     return 0;
 }
 
+// Set the Header and the Footer for a chunck of memory.
 // ptr - Points to start of memory chunck
 // size - size of entire memory chunck
 // free - 1: Available; 0: Allocated
@@ -90,6 +104,7 @@ void setHeaderFooter(void *ptr, int size, int free) {
     header->pair = footer;
 }
 
+// Prepends new node to free list.
 void prependFree(node_t *node) {
     if (head == NULL) {
         node->prev = NULL;
@@ -107,14 +122,17 @@ void prependFree(node_t *node) {
     head = node;
 }
 
+// Returns address of allocated memory associated with given header.
 void *getAddress(header_t *header) {
     return (char *) (header+1);
 }
 
+// Returns address of node associated with given header.
 node_t *getNode(header_t *header) {
     return (node_t*)(header+1);
 }
 
+// Removes node associated with given Header from free list.
 void removeFreeBlock(header_t *header) {
     node_t *toRemove = getNode(header);
     node_t *prev = toRemove->prev;
@@ -135,11 +153,6 @@ void removeFreeBlock(header_t *header) {
 
 // Get header of next chunck
 header_t *getNext(header_t *header) {
-    /*
-    header_t *ptr = header+2;
-    ptr = (header_t*)((char*)ptr + header->size);
-    */
-
     header_t *ptr = header->pair+1;
 
     if (ptr >= bot) {
@@ -157,10 +170,6 @@ header_t *getPrev(header_t *header) {
     }
 
     ptr = header-1;
-    /*
-    ptr = (header_t*)((char*)ptr - ptr->size);
-    ptr -= 1;
-    */
     ptr = ptr->pair;
 
     return ptr;
@@ -169,8 +178,7 @@ header_t *getPrev(header_t *header) {
 int M_Init(int size) {
     void *ptr;
 
-    // Verbose
-    printf("M_Init(%d)\n", size);
+    DEBUG_PRINT( ("M_Init(%d)\n", size) );
 
     if (init != 0) {
         // M_Init has already been called
@@ -187,8 +195,7 @@ int M_Init(int size) {
         perror("mmap");
         return -1;
     }
-    // Verbose
-    printf("sizeof(header_t) = %ld,\t sizeof(node_t) = %ld\n", sizeof(header_t), sizeof(node_t));
+    DEBUG_PRINT( ("sizeof(header_t) = %ld,\t sizeof(node_t) = %ld\n", sizeof(header_t), sizeof(node_t)) );
 
     setHeaderFooter(ptr, size, 1);
 
@@ -201,8 +208,7 @@ int M_Init(int size) {
     current = head;
     init = 1;
 
-    // Verbose
-    M_DisplayAll();
+    DISPLAY_ALL();
 
     return 0;
 }
@@ -228,8 +234,7 @@ void *M_Alloc(int size) {
     node_t *freeNode;
     header_t *allocated, *free;
 
-    // Verbose
-    printf("M_Alloc(%d)\n", size);
+    DEBUG_PRINT( ("M_Alloc(%d)\n", size) );
 
     if (size <= 0) {
         return NULL;
@@ -259,9 +264,8 @@ void *M_Alloc(int size) {
             setHeaderFooter(allocated, size, 0);
             removeFreeBlock(allocated);
 
-            // Verbose
-            printf("M_Alloc: SUCCESS///\n");
-            M_DisplayAll();
+            DEBUG_PRINT( ("M_Alloc = %p\n", getAddress(allocated)) );
+            DISPLAY_ALL();
 
             return getAddress(allocated);
         } else {
@@ -269,8 +273,8 @@ void *M_Alloc(int size) {
         }
     } while (current != start);
 
-    // Verbose
-    M_DisplayAll();
+    DISPLAY_ALL();
+    DEBUG_PRINT( ("M_Alloc = NULL\n") );
 
     return NULL;
 }
@@ -335,8 +339,7 @@ void coallesce(header_t *header) {
 int M_Free(void *p) {
     header_t *header;
     
-    // Verbose
-    printf("M_Free(%p)\n", p);
+    DEBUG_PRINT( ("M_Free(%p)\n", p) );
 
     if (p == NULL) {
         return -1;
@@ -349,8 +352,7 @@ int M_Free(void *p) {
     header = getHeader(p);
     coallesce(header);
 
-    // Verbose
-    M_DisplayAll();
+    DISPLAY_ALL();
  
     return 0;
 }
