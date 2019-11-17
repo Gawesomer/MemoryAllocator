@@ -4,7 +4,7 @@
 #include "alloc.h"
 
 // Uncomment the macro below if you want to have verbose display.
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 # define DEBUG_PRINT(x) printf x
@@ -199,13 +199,17 @@ int M_Init(int size) {
 
     setHeaderFooter(ptr, size, 1);
 
+    // Set top and bottom boundaries.
     top = ptr;
     bot = (header_t*)((char*)top + size);
 
-    head = (node_t*) (((header_t*)ptr)+1);
+    // Initialize free list
+    head = getNode(ptr);
     head->next = NULL;
     head->prev = NULL;
     current = head;
+
+    // M_Init has now been successfully called.
     init = 1;
 
     DISPLAY_ALL();
@@ -213,33 +217,21 @@ int M_Init(int size) {
     return 0;
 }
 
-void displayFreeList() {
-    node_t *ptr;
-
-    printf("---displayFreeList\n");
-    printf("\tcurrent = %p\n", (void*)current);
-
-    printf("\tFree List:\n\t\t");
-    ptr = head;
-    while (ptr != NULL) {
-        printf("%p - ", (void*)ptr);
-        ptr = ptr->next;
-    }
-    printf("\n\n");
-    
-}
-
 void *M_Alloc(int size) {
-    node_t *start;
+    node_t *start;      // Where in the free list we began looking for a chunck.
+                        // Used as a landmark to notice once we've considered
+                        // every chunck.
     node_t *freeNode;
     header_t *allocated, *free;
 
     DEBUG_PRINT( ("M_Alloc(%d)\n", size) );
 
     if (size <= 0) {
+        // Cannot allocate negative size chuncks.
         return NULL;
     }
     if (current == NULL) {
+        // Free list is empty.
         if (head != NULL) {
             fprintf(stderr, "ERROR: current is NULL but free list non-empty\n");
         }
@@ -250,14 +242,21 @@ void *M_Alloc(int size) {
     start = current;
     do {
         if (bigEnough(current, size)) {
+            // current chunck is big enough and will be allocated.
             allocated = getHeader(current);
+
             if (allocated->size > size + 2*sizeof(header_t) + sizeof(node_t)) {
                 // We have enough space to split and make another free chunck
                 free = (header_t*) ((char*)allocated + ((size + 2*sizeof(header_t))/sizeof(char)) );   
                 setHeaderFooter(free, allocated->size-size, 1);
                 freeNode = getNode(free);
                 prependFree(freeNode);
+            } else {
+                // We don't have enough space to split so use up the entire 
+                // chunck.
+                size = allocated->size;
             }
+
             circularNext(current);
             // Allocate chunck
             size += 2*sizeof(header_t);
@@ -272,6 +271,8 @@ void *M_Alloc(int size) {
             circularNext(current);
         }
     } while (current != start);
+    // We've searched through the entire free list and did not find a chunck
+    // large enough.
 
     DISPLAY_ALL();
     DEBUG_PRINT( ("M_Alloc = NULL\n") );
@@ -279,8 +280,9 @@ void *M_Alloc(int size) {
     return NULL;
 }
 
+// Frees and coallesces memory chunck associated with given header
 void coallesce(header_t *header) {
-    header_t *next, *prev;
+    header_t *next, *prev;      // Memory chuncks immediately before and after
     node_t *node;
     int nextFree, prevFree;
 
@@ -299,6 +301,8 @@ void coallesce(header_t *header) {
     }
 
     if (!prevFree && !nextFree) {
+        // Neither neighbouring chuncks are free
+        // No coallescing necessary
         setHeaderFooter(header, header->size + 2*sizeof(header_t), 1);
         node = getNode(header);
         prependFree(node);
@@ -306,6 +310,7 @@ void coallesce(header_t *header) {
     }
 
     if (prevFree && nextFree) {
+        // Both neighbouring chuncks are free
         setHeaderFooter(prev, prev->size + header->size + next->size + 6*sizeof(header_t), 1);
         if (getNode(next)->prev != NULL) {
             getNode(next)->prev->next = getNode(next)->next;
@@ -316,6 +321,7 @@ void coallesce(header_t *header) {
         return;
     }
 
+    // Only one neighbouring chunck is free
     if (prevFree) {
         setHeaderFooter(prev, prev->size + header->size + 4*sizeof(header_t), 1);
         return;
@@ -335,17 +341,18 @@ void coallesce(header_t *header) {
     }
 }
 
-// Returns 0 on success -1 on failure
 int M_Free(void *p) {
     header_t *header;
     
     DEBUG_PRINT( ("M_Free(%p)\n", p) );
 
     if (p == NULL) {
+        // Nothing to free
         return -1;
     }
 
     if (p < (void*)top || p >= (void*)bot) {
+        // Pointer not within bounds of memory segment allocator manages.
         return -1;
     }
 
