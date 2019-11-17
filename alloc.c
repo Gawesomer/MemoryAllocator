@@ -4,7 +4,7 @@
 #include "alloc.h"
 
 // Uncomment the macro below if you want to have verbose display.
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 # define DEBUG_PRINT(x) printf x

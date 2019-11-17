@@ -12,6 +12,7 @@ int M_Init(int size);
 
 /**
  * Allocates a chunck of memory.
+ * The chunck of memory is allocated on contiguous free space.
  * The actual size of the allocated chunck is rounded up to the nearest multiple
  * of 16 bytes.
  * The allocated chunck will always be aligned on a 16 byte boundary.
